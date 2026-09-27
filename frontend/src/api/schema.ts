@@ -3793,6 +3793,7 @@ export interface components {
             unresolvedCount: number;
         };
         ListPRFilesResponse: {
+            commits: components["schemas"]["WorkspaceCommitSummary"][];
             files: components["schemas"]["WorkspaceFileSummary"][];
             sessionId: string;
             summary: components["schemas"]["WorkspaceSummary"];
@@ -11962,6 +11963,8 @@ export interface operations {
                 previousPath?: string;
                 /** @description Stable URL of the selected associated pull request. */
                 sourceUrl?: string;
+                /** @description Exact SHA of one of the pull request's commits; reads that commit's change instead of the whole pull request. */
+                commitSha?: string;
             };
             header?: never;
             path: {
@@ -12021,6 +12024,8 @@ export interface operations {
                 side?: "before" | "after";
                 /** @description Stable URL of the selected associated pull request. */
                 sourceUrl?: string;
+                /** @description Exact SHA of one of the pull request's commits; before is its first parent, after is the commit. */
+                commitSha?: string;
             };
             header?: never;
             path: {
