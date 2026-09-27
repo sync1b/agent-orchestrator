@@ -320,6 +320,7 @@ function toCloudWorkspaceSession(
 			sandboxProvider: session.sandboxProvider,
 			desiredState: session.desiredState,
 			observedState: session.observedState,
+			runtimeError: session.runtimeError,
 		},
 	};
 }

@@ -176,6 +176,7 @@ export type WorkspaceSession = {
 		sandboxProvider?: string;
 		desiredState?: string;
 		observedState?: string;
+		runtimeError?: string;
 	};
 };
 
