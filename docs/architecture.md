@@ -46,6 +46,25 @@ The only persistent session state is:
 
 Display status like `working`, `needs_input`, `ci_failed`, `mergeable` are **computed at read time** by the service layer from the durable facts above.
 
+### Native helpers and execution ownership
+
+Provider-native helpers may work on bounded subtasks inside an existing AO task
+or issue attempt. The parent session remains the execution owner and is
+responsible for disjoint write scopes, integration, helper completion or cleanup,
+and the final report. Helpers do not create independent AO sessions, consume the
+ready queue, claim issues or PRs, or replace a required independent AO reviewer.
+This policy changes standing instructions only; it does not grant tools, change
+credentials, or replace the provider's native default system prompt.
+
+The orchestrator is coordination-only by default. It may make small direct
+changes only under an explicit task assignment with sole ownership of an
+isolated workspace, using its assigned non-default branch for Git changes. The
+shared project checkout stays read-only. Without that assignment, implementation
+goes to an AO worker through the configured admission path. PR ownership remains
+on workers; a direct change needs an explicit ownership handoff before another
+session continues it. This exception does not allocate an orchestrator worktree
+or change the existing session lifecycle.
+
 ---
 
 ## System Overview

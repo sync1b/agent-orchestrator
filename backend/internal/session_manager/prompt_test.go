@@ -85,17 +85,24 @@ func TestSystemPromptGuardAllowsHighLevelRoleAndBehaviorSummary(t *testing.T) {
 	}
 }
 
-func TestBuildSystemPrompt_OrchestratorRequiresConfirmationAndAOOnlyDelegation(t *testing.T) {
+func TestBuildSystemPrompt_OrchestratorRequiresAssignedIsolationForDirectWork(t *testing.T) {
 	got := buildSystemPromptText(systemPromptConfig{
 		Role:    sessionPromptRoleOrchestrator,
 		Project: promptProject{ID: "mer", Name: "Mercury"},
 	})
 	for _, want := range []string{
-		"Never ever make code changes directly in the orchestrator session",
-		"ask for explicit confirmation before making any code changes",
-		"prefer spawning or redirecting a worker unless the human explicitly confirms",
-		"Do not use the agent runtime's built-in subagent or task-delegation tools for implementation work",
-		"You may coordinate multiple workers, but AO workers only",
+		"The shared project checkout is read-only",
+		"small, bounded implementation or verification directly only when this session has been explicitly assigned",
+		"in an isolated workspace and is its sole execution owner",
+		"Confirm the assigned workspace and ownership before any write",
+		"use the assigned non-default branch",
+		"If those conditions are absent or uncertain, spawn or redirect an AO worker",
+		"Honor an existing explicit assignment without asking for the same permission again",
+		"Keep PR ownership on AO workers",
+		"explicit ownership handoff",
+		"do not spawn normal queued work around it",
+		"Helper writes must meet the same isolated-workspace and ownership conditions",
+		"Native checks and advisory reviews do not replace a required independent AO reviewer",
 		"ao session claim-pr <worker-session-id> <pr-ref>",
 		"must pass the target worker session explicitly",
 		"Add `--model <id>` when the human or task explicitly requests a specific model",
@@ -104,6 +111,15 @@ func TestBuildSystemPrompt_OrchestratorRequiresConfirmationAndAOOnlyDelegation(t
 	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("orchestrator prompt missing %q:\n%s", want, got)
+		}
+	}
+	for _, forbidden := range []string{
+		"Never ever make code changes directly in the orchestrator session",
+		"ask for explicit confirmation before making any code changes",
+		"AO workers only",
+	} {
+		if strings.Contains(got, forbidden) {
+			t.Fatalf("orchestrator prompt retains obsolete blanket restriction %q:\n%s", forbidden, got)
 		}
 	}
 }
@@ -125,8 +141,8 @@ func TestBuildSystemPrompt_WorkerHandlesTaskSourcesAndProviderPRRules(t *testing
 		"attach it to this worker first",
 		"AO resolves this session from `AO_SESSION_ID`",
 		"do not invent issue, PR, or MR requirements",
-		"Do not use the agent runtime's built-in subagent or task-delegation tools",
-		"If no orchestrator is attached, continue serially and report the need for additional AO workers to the human",
+		"Native helpers within this attempt do not require an orchestrator",
+		"do not independently admit queued work or spawn AO workers",
 	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("worker prompt missing %q:\n%s", want, got)
@@ -140,7 +156,7 @@ func TestBuildSystemPrompt_WorkerHandlesTaskSourcesAndProviderPRRules(t *testing
 	}
 }
 
-func TestBuildSystemPrompt_WorkerWithOrchestratorUsesOrchestratorParallelHandoff(t *testing.T) {
+func TestBuildSystemPrompt_WorkerRequestsSeparateOwnershipThroughOrchestrator(t *testing.T) {
 	got := buildSystemPromptText(systemPromptConfig{
 		Role:                  sessionPromptRoleWorker,
 		Project:               promptProject{ID: "mer", Name: "Mercury", Repo: "https://github.com/acme/mercury"},
@@ -149,7 +165,10 @@ func TestBuildSystemPrompt_WorkerWithOrchestratorUsesOrchestratorParallelHandoff
 	if !strings.Contains(got, "ask the orchestrator to spawn additional AO worker sessions") {
 		t.Fatalf("worker prompt missing orchestrator handoff guidance:\n%s", got)
 	}
-	if strings.Contains(got, "If no orchestrator is attached, continue serially") {
+	if !strings.Contains(got, "Only when work needs a separate execution owner or another issue attempt") {
+		t.Fatalf("worker prompt does not distinguish helpers from separately owned work:\n%s", got)
+	}
+	if strings.Contains(got, "report that need to the human") {
 		t.Fatalf("worker prompt should not include standalone fallback when orchestrator is attached:\n%s", got)
 	}
 	if strings.Contains(got, "- ## Git and PR/MR Rules") || strings.Contains(got, "- ## Local Git Rules") {
@@ -157,6 +176,72 @@ func TestBuildSystemPrompt_WorkerWithOrchestratorUsesOrchestratorParallelHandoff
 	}
 	if !strings.Contains(got, "## Git and PR/MR Rules") {
 		t.Fatalf("worker prompt missing repository rules section heading:\n%s", got)
+	}
+}
+
+func TestBuildSystemPrompt_WorkerAllowsBoundedNativeHelpers(t *testing.T) {
+	for _, orchestratorID := range []string{"", "mer-orchestrator"} {
+		for _, repo := range []string{"", "https://github.com/acme/mercury"} {
+			t.Run(orchestratorID+"/"+repo, func(t *testing.T) {
+				got := buildSystemPromptText(systemPromptConfig{
+					Role:                  sessionPromptRoleWorker,
+					Project:               promptProject{ID: "mer", Repo: repo},
+					OrchestratorSessionID: orchestratorID,
+				})
+				for _, want := range []string{
+					"You may use available native subagent or task-delegation tools",
+					"bounded subtasks of the assigned task or issue attempt",
+					"This AO session remains the sole execution owner",
+					"Helpers inherit the assigned scope, workspace, permissions, and publishing restrictions",
+					"grant no additional tools, credentials, model access, or spend authority",
+					"Parallel writers must own disjoint files; serialize overlapping edits",
+					"never the shared project checkout or another session's workspace",
+					"Helpers must not independently admit queued work, create work units or AO sessions",
+					"No separate issue or AO worker is needed for an in-session helper",
+					"Collect helper results or stop the helpers before declaring the task complete",
+					"do not replace a required independent AO reviewer",
+					"Neither the author nor its helpers may approve the author's work",
+					"Helpers must not satisfy independent review or merge gates",
+				} {
+					if !strings.Contains(got, want) {
+						t.Errorf("worker prompt missing native-helper boundary %q", want)
+					}
+				}
+				if strings.Count(got, "## Native helper policy v1") != 1 {
+					t.Error("worker prompt must include exactly one native-helper policy")
+				}
+				for _, forbidden := range []string{
+					"Do not use the agent runtime's built-in subagent or task-delegation tools",
+					"instead of delegating inside the runtime",
+					"continue serially",
+				} {
+					if strings.Contains(got, forbidden) {
+						t.Errorf("worker prompt retains obsolete helper restriction %q", forbidden)
+					}
+				}
+			})
+		}
+	}
+}
+
+func TestBuildSystemPrompt_StandaloneKeepsProjectRequirementsOut(t *testing.T) {
+	got := buildSystemPromptText(systemPromptConfig{
+		Role:         sessionPromptRoleWorker,
+		Standalone:   true,
+		ProjectRules: "PROJECT RULE MUST NOT LEAK",
+	})
+	if !strings.Contains(got, "## AO Standalone Agent") {
+		t.Fatal("standalone role is missing")
+	}
+	for _, forbidden := range []string{
+		"## Project Context",
+		"PROJECT RULE MUST NOT LEAK",
+		"required independent AO reviewer",
+		"ao session claim-pr",
+	} {
+		if strings.Contains(got, forbidden) {
+			t.Errorf("standalone prompt acquired project requirement %q", forbidden)
+		}
 	}
 }
 
