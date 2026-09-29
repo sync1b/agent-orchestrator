@@ -58,6 +58,8 @@ Open Agent Orchestrator and point it at the repository you want AO to manage. Th
 
 A worker is AO's unit of execution: one task, one coding agent, and one isolated workspace. Use **New task** when the work is already clear. Describe the outcome, choose an agent and model, attach relevant files, and work with the agent in structured Chat or its native terminal UI.
 
+A worker may use its coding agent's available native helpers for bounded subtasks within that same attempt. The worker keeps ownership of the result, gives parallel helpers disjoint files, collects their work, and retains the existing permissions and publishing scope. Helpers do not need separate issues or AO sessions, and their checks do not replace a required independent reviewer.
+
 Open a worker at any time to continue the conversation, attach to its terminal, inspect its changes, use its isolated browser, review its pull request, or send CI and review feedback back to the same agent. This makes each task independently understandable and keeps parallel work from collapsing into one shared context.
 
 <img src="docs/assets/readme/new-task.png" alt="Create a new task in Agent Orchestrator with an agent and model selected" width="100%" />
@@ -68,7 +70,7 @@ The project orchestrator is AO's persistent planning and coordination agent. It 
 
 Use the orchestrator to explore an idea before implementation, brainstorm product and technical approaches, reason through tradeoffs, identify high-impact work, and turn an ambiguous outcome into a concrete plan. Its project-scoped conversation preserves goals, decisions, constraints, and earlier reasoning. It combines that planning history with repository context and live AO state, including active workers, ownership, pull requests, CI, and reviews. This keeps planning grounded in both the project and the work already underway.
 
-When a plan becomes actionable, the orchestrator can break it into focused tasks, spawn or redirect workers, pass each worker the relevant context, follow their progress, and coordinate follow-up work. The orchestrator owns planning and delegation; workers own implementation, tests, commits, and pull requests.
+When a plan becomes actionable, the orchestrator can break it into focused tasks, spawn or redirect workers, pass each worker the relevant context, follow their progress, and coordinate follow-up work. It can use native helpers for planning and research. Workers own separately assigned implementation and pull requests. Small direct changes are permitted only when the orchestrator has an explicit task assignment, an isolated workspace, and sole ownership; the shared project checkout remains read-only. Existing queue admission and independent review still apply.
 
 <img src="docs/assets/readme/orchestrator.png" alt="Agent Orchestrator coordinating multiple workers and passing them focused project context" width="100%" />
 

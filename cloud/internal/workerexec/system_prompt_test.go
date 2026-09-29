@@ -48,6 +48,7 @@ func TestBuildInteractiveInjectsSystemPromptForEveryCloudHarness(t *testing.T) {
 			switch harness {
 			case "claude-code":
 				assertArgPair(t, command.Args, "--append-system-prompt-file", systemPromptPath)
+				assertNativeSystemPromptPreserved(t, command.Args)
 			case "codex":
 				assertArgPair(t, command.Args, "-c", "model_instructions_file="+systemPromptPath)
 			case "cursor":
@@ -78,6 +79,8 @@ func TestBuildInteractiveFallsBackToBuiltInRolePrompt(t *testing.T) {
 	systemPromptPath := filepath.Join(dataDir, "prompts", sessionKey("session-1"), "system.md")
 	assertArgPair(t, command.Args, "--append-system-prompt-file", systemPromptPath)
 	assertFileContains(t, systemPromptPath, "## AO Worker Role")
+	assertFileContains(t, systemPromptPath, "## Native helper policy v1")
+	assertNativeSystemPromptPreserved(t, command.Args)
 }
 
 func TestBuildInteractiveReappliesSystemPromptOnRestore(t *testing.T) {
@@ -121,6 +124,7 @@ func TestBuildInteractiveReappliesSystemPromptOnRestore(t *testing.T) {
 			switch harness {
 			case "claude-code":
 				assertArgPair(t, command.Args, "--append-system-prompt-file", systemPromptPath)
+				assertNativeSystemPromptPreserved(t, command.Args)
 				assertArgPair(t, command.Args, "--resume", identity)
 			case "codex":
 				assertArgPair(t, command.Args, "-c", "model_instructions_file="+systemPromptPath)
@@ -133,6 +137,15 @@ func TestBuildInteractiveReappliesSystemPromptOnRestore(t *testing.T) {
 				assertArgPair(t, command.Args, "--resume", identity)
 			}
 		})
+	}
+}
+
+func assertNativeSystemPromptPreserved(t *testing.T, args []string) {
+	t.Helper()
+	for _, arg := range args {
+		if arg == "--system-prompt" || arg == "--system-prompt-file" {
+			t.Fatalf("AO standing instructions must append to the native prompt, not replace it: %#v", args)
+		}
 	}
 }
 
